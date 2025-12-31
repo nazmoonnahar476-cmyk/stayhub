@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Details - StayHub</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1><a href="index.html">StayHub</a></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="properties.html">Properties</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="propertyDetails" class="property-details">
+            <!-- Property details will be loaded here -->
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const propertyId = urlParams.get('id');
+
+        async function loadPropertyDetails() {
+            try {
+                const response = await fetch(`/api/properties/${propertyId}`);
+                const property = await response.json();
+
+                const detailsDiv = document.getElementById('propertyDetails');
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                const isGuest = user.role === 'guest' || !user.role;
+
+                detailsDiv.innerHTML = `
+                    <div class="property-images">
+                        ${property.images && property.images.length > 0 
+                            ? property.images.map(img => `<img src="${img}" alt="${property.title}">`).join('')
+                            : '<img src="https://via.placeholder.com/800x400" alt="No image">'}
+                    </div>
+                    <div class="property-content">
+                        <h1>${property.title}</h1>
+                        <p class="property-location">${property.address}, ${property.city}, ${property.country || 'Bangladesh'}</p>
+                        <div class="property-meta">
+                            <span>${property.bedrooms} Bedrooms</span>
+                            <span>${property.bathrooms} Bathrooms</span>
+                            <span>Up to ${property.max_guests} Guests</span>
+                            <span>Rating: ${property.avg_rating || 'N/A'}</span>
+                        </div>
+                        <div class="property-price-section">
+                            <h2>৳${property.price_per_night}/night</h2>
+                            ${isGuest ? `
+                                <div class="booking-form">
+                                    <h3>Book This Property</h3>
+                                    <form id="bookingForm">
+                                        <input type="date" id="checkIn" required>
+                                        <input type="date" id="checkOut" required>
+                                        <textarea id="guestMessage" placeholder="Message to host (optional)"></textarea>
+                                        <button type="submit" class="btn-primary">Book Now</button>
+                                    </form>
+                                </div>
+                                <button onclick="toggleWishlist(${property.id})" class="btn-secondary" id="wishlistBtn">Add to Wishlist</button>
+                            ` : ''}
+                        </div>
+                        <div class="property-description">
+                            <h3>Description</h3>
+                            <p>${property.description}</p>
+                        </div>
+                        <div class="property-amenities">
+                            <h3>Amenities</h3>
+                            <ul>
+                                ${property.amenities && property.amenities.length > 0
+                                    ? property.amenities.map(a => `<li>${a}</li>`).join('')
+                                    : '<li>No amenities listed</li>'}
+                            </ul>
+                        </div>
+                        ${property.house_rules ? `
+                            <div class="property-rules">
+                                <h3>House Rules</h3>
+                                <p>${property.house_rules}</p>
+                            </div>
+                        ` : ''}
+                        <div class="property-reviews">
+                            <h3>Reviews</h3>
+                            ${property.reviews && property.reviews.length > 0
+                                ? property.reviews.map(review => `
+                                    <div class="review-item">
+                                        <strong>${review.guest_name}</strong>
+                                        <div class="rating">${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}</div>
+                                        <p>${review.comment || 'No comment'}</p>
+                                        <small>${new Date(review.created_at).toLocaleDateString()}</small>
+                                    </div>
+                                `).join('')
+                                : '<p>No reviews yet.</p>'}
+                        </div>
+                    </div>
+                `;
+
+                if (isGuest) {
+                    document.getElementById('bookingForm').addEventListener('submit', handleBooking);
+                    checkWishlistStatus(propertyId);
+                }
+            } catch (error) {
+                console.error('Error loading property:', error);
+                document.getElementById('propertyDetails').innerHTML = '<p>Error loading property details.</p>';
+            }
+        }
+
+        async function handleBooking(e) {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login to book a property');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const checkIn = document.getElementById('checkIn').value;
+            const checkOut = document.getElementById('checkOut').value;
+            const guestMessage = document.getElementById('guestMessage').value;
+
+            try {
+                const response = await fetch('/api/bookings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        property_id: parseInt(propertyId),
+                        check_in: checkIn,
+                        check_out: checkOut,
+                        guest_message: guestMessage
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Booking request submitted successfully!');
+                    window.location.href = 'bookings.html';
+                } else {
+                    alert(data.error || 'Booking failed');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        async function toggleWishlist(propertyId) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login to add to wishlist');
+                return;
+            }
+
+            const btn = document.getElementById('wishlistBtn');
+            const isInWishlist = btn.textContent.includes('Remove');
+
+            try {
+                const response = await fetch(`/api/wishlist/${propertyId}`, {
+                    method: isInWishlist ? 'DELETE' : 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    btn.textContent = isInWishlist ? 'Add to Wishlist' : 'Remove from Wishlist';
+                }
+            } catch (error) {
+                console.error('Wishlist error:', error);
+            }
+        }
+
+        async function checkWishlistStatus(propertyId) {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const response = await fetch('/api/wishlist', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const wishlist = await response.json();
+                const isInWishlist = wishlist.some(p => p.id === parseInt(propertyId));
+                if (isInWishlist) {
+                    document.getElementById('wishlistBtn').textContent = 'Remove from Wishlist';
+                }
+            } catch (error) {
+                console.error('Error checking wishlist:', error);
+            }
+        }
+
+        if (propertyId) {
+            loadPropertyDetails();
+        } else {
+            document.getElementById('propertyDetails').innerHTML = '<p>Property not found.</p>';
+        }
+    </script>
+</body>
+</html>
+

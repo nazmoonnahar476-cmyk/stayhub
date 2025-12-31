@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bookings - StayHub</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1><a href="index.html">StayHub</a></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="properties.html">Properties</a></li>
+                <li><a href="profile.html">Profile</a></li>
+                <li><a href="bookings.html" class="active">My Bookings</a></li>
+                <li><a href="#" id="logoutBtn">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="bookings-page">
+            <h1>My Bookings</h1>
+            <div id="bookingsList">
+                <!-- Bookings will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        async function loadBookings() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/bookings/my-bookings', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const bookings = await response.json();
+                    displayBookings(bookings);
+                } else {
+                    window.location.href = 'login.html';
+                }
+            } catch (error) {
+                console.error('Error loading bookings:', error);
+            }
+        }
+
+        function displayBookings(bookings) {
+            const listDiv = document.getElementById('bookingsList');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const isHost = user.role === 'host' || user.role === 'admin';
+
+            if (bookings.length === 0) {
+                listDiv.innerHTML = '<p>No bookings found.</p>';
+                return;
+            }
+
+            listDiv.innerHTML = bookings.map(booking => {
+                const statusClass = booking.status.toLowerCase();
+                const checkIn = new Date(booking.check_in);
+                const checkOut = new Date(booking.check_out);
+                const today = new Date();
+                const canCancel = checkIn > today && booking.status === 'pending' || booking.status === 'confirmed';
+
+                return `
+                    <div class="booking-card">
+                        <img src="${booking.images && booking.images[0] ? booking.images[0] : 'https://via.placeholder.com/300x200'}" alt="${booking.title}">
+                        <div class="booking-info">
+                            <h3>${booking.title}</h3>
+                            <p>${booking.address}, ${booking.city}</p>
+                            <p><strong>Check-in:</strong> ${checkIn.toLocaleDateString()}</p>
+                            <p><strong>Check-out:</strong> ${checkOut.toLocaleDateString()}</p>
+                            <p><strong>Total Price:</strong> ৳${booking.total_price}</p>
+                            <p><strong>Status:</strong> <span class="status-${statusClass}">${booking.status}</span></p>
+                            ${isHost && booking.status === 'pending' ? `
+                                <div class="booking-actions">
+                                    <button onclick="updateBookingStatus(${booking.id}, 'confirmed')" class="btn-primary">Accept</button>
+                                    <button onclick="updateBookingStatus(${booking.id}, 'cancelled')" class="btn-secondary">Reject</button>
+                                </div>
+                            ` : ''}
+                            ${!isHost && canCancel ? `
+                                <button onclick="cancelBooking(${booking.id})" class="btn-secondary">Cancel Booking</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function updateBookingStatus(bookingId, status) {
+            const token = localStorage.getItem('token');
+            const response = confirm(`Are you sure you want to ${status} this booking?`);
+
+            if (!response) return;
+
+            try {
+                const res = await fetch(`/api/bookings/${bookingId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status })
+                });
+
+                if (res.ok) {
+                    alert(`Booking ${status} successfully`);
+                    loadBookings();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || 'Failed to update booking');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        async function cancelBooking(bookingId) {
+            if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`/api/bookings/${bookingId}/cancel`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    alert('Booking cancelled successfully');
+                    loadBookings();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || 'Failed to cancel booking');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        loadBookings();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Properties - StayHub</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1><a href="index.html">StayHub</a></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="properties.html" class="active">Properties</a></li>
+                <li id="authLinks">
+                    <a href="login.html">Login</a>
+                </li>
+                <li id="userLinks" style="display: none;">
+                    <a href="profile.html">Profile</a>
+                    <a href="bookings.html">My Bookings</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="properties-page">
+            <h1>All Properties</h1>
+            
+            <!-- Filters -->
+            <div class="filters">
+                <input type="text" id="filterCity" placeholder="City">
+                <input type="number" id="filterMinPrice" placeholder="Min Price">
+                <input type="number" id="filterMaxPrice" placeholder="Max Price">
+                <select id="filterType">
+                    <option value="">All Types</option>
+                    <option value="apartment">Apartment</option>
+                    <option value="house">House</option>
+                    <option value="villa">Villa</option>
+                    <option value="room">Room</option>
+                </select>
+                <button onclick="applyFilters()" class="btn-primary">Filter</button>
+                <button onclick="clearFilters()" class="btn-secondary">Clear</button>
+            </div>
+
+            <!-- Properties Grid -->
+            <div class="properties-grid" id="propertiesGrid">
+                <!-- Properties will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        let currentFilters = {};
+
+        async function loadProperties() {
+            try {
+                const params = new URLSearchParams(currentFilters);
+                const response = await fetch(`/api/properties?${params}`);
+                const properties = await response.json();
+                displayProperties(properties);
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+
+        function displayProperties(properties) {
+            const grid = document.getElementById('propertiesGrid');
+            if (properties.length === 0) {
+                grid.innerHTML = '<p>No properties found.</p>';
+                return;
+            }
+
+            grid.innerHTML = properties.map(prop => `
+                <div class="property-card">
+                    <img src="${prop.images && prop.images[0] ? prop.images[0] : 'https://via.placeholder.com/300x200'}" alt="${prop.title}">
+                    <div class="property-info">
+                        <h3>${prop.title}</h3>
+                        <p class="property-location">${prop.city}, ${prop.country || 'Bangladesh'}</p>
+                        <p class="property-price">৳${prop.price_per_night}/night</p>
+                        <p class="property-details">${prop.bedrooms} bed • ${prop.bathrooms} bath • ${prop.max_guests} guests</p>
+                        <a href="property-details.html?id=${prop.id}" class="btn-primary">View Details</a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function applyFilters() {
+            const city = document.getElementById('filterCity').value;
+            const minPrice = document.getElementById('filterMinPrice').value;
+            const maxPrice = document.getElementById('filterMaxPrice').value;
+            const type = document.getElementById('filterType').value;
+
+            currentFilters = {};
+            if (city) currentFilters.city = city;
+            if (minPrice) currentFilters.min_price = minPrice;
+            if (maxPrice) currentFilters.max_price = maxPrice;
+            if (type) currentFilters.property_type = type;
+
+            loadProperties();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterCity').value = '';
+            document.getElementById('filterMinPrice').value = '';
+            document.getElementById('filterMaxPrice').value = '';
+            document.getElementById('filterType').value = '';
+            currentFilters = {};
+            loadProperties();
+        }
+
+        loadProperties();
+    </script>
+</body>
+</html>
+

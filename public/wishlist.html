@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wishlist - StayHub</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1><a href="index.html">StayHub</a></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="properties.html">Properties</a></li>
+                <li><a href="wishlist.html" class="active">Wishlist</a></li>
+                <li><a href="#" id="logoutBtn">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="wishlist-page">
+            <h1>My Wishlist</h1>
+            <div class="properties-grid" id="wishlistGrid">
+                <!-- Wishlist items will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        async function loadWishlist() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/wishlist', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const properties = await response.json();
+                    displayWishlist(properties);
+                } else {
+                    window.location.href = 'login.html';
+                }
+            } catch (error) {
+                console.error('Error loading wishlist:', error);
+            }
+        }
+
+        function displayWishlist(properties) {
+            const grid = document.getElementById('wishlistGrid');
+            if (properties.length === 0) {
+                grid.innerHTML = '<p>Your wishlist is empty.</p>';
+                return;
+            }
+
+            grid.innerHTML = properties.map(prop => `
+                <div class="property-card">
+                    <img src="${prop.images && prop.images[0] ? prop.images[0] : 'https://via.placeholder.com/300x200'}" alt="${prop.title}">
+                    <div class="property-info">
+                        <h3>${prop.title}</h3>
+                        <p class="property-location">${prop.city}, ${prop.country || 'Bangladesh'}</p>
+                        <p class="property-price">৳${prop.price_per_night}/night</p>
+                        <div class="property-actions">
+                            <a href="property-details.html?id=${prop.id}" class="btn-primary">View Details</a>
+                            <button onclick="removeFromWishlist(${prop.id})" class="btn-secondary">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function removeFromWishlist(propertyId) {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/api/wishlist/${propertyId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    loadWishlist();
+                }
+            } catch (error) {
+                console.error('Error removing from wishlist:', error);
+            }
+        }
+
+        loadWishlist();
+    </script>
+</body>
+</html>
+
